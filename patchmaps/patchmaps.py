@@ -1,23 +1,44 @@
 #!/usr/bin/env python
 # coding: utf-8
 import math
+import py_compile
 from itertools import product
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pyproj
+import shapely.affinity
 from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
+from shapely import LineString
 from shapely.geometry.polygon import Polygon
 from shapely.ops import transform
+from sklearn.decomposition import PCA
+
+
+def unit_vector(vector):
+    return vector / np.linalg.norm(vector)
+
+
+def angle_between(v1, v2):
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
 
 def get_structure(
-    poly: Polygon, crs="epsg:4326", working_width=36, factor=2, tramline=None
+    fid,
+    poly: Polygon,
+    crs="epsg:4326",
+    working_width=36,
+    factor=1,
+    tramline=None,
+    use_pca=None,
 ) -> gpd.GeoDataFrame:
-
     edge_length = working_width * factor
+
     if factor % 2 == 0:
         parallel_shift = 4
     else:
@@ -39,55 +60,97 @@ def get_structure(
     project = pyproj.Transformer.from_crs(crs, utm, always_xy=True).transform
     poly = transform(project, poly)
 
-    if tramline is None:
-        p0 = poly.bounds[0], poly.bounds[1]
-        p1 = poly.bounds[0], poly.bounds[1] + 10
-    else:
+    if tramline is not None:
         tramline = tramline.to_crs("{}".format(utm))
-        p0 = tramline["geometry"][0].coords[
-            0
-        ]  # First coordinate of permanent traffic lane
-        p1 = tramline["geometry"][0].coords[1]
+        p0 = np.array(
+            tramline["geometry"][0].coords[0], dtype=np.float64
+        )  # First coordinate of permanent traffic laneb
+        p1 = np.array(tramline["geometry"][0].coords[1], dtype=np.float64)
+        direction = unit_vector(p1 - p0)
+    elif use_pca:
+        coords = np.array(poly.exterior.coords, dtype=np.float64)
+        pca = PCA(n_components=2)
+        pca.fit(coords)
+        direction = pca.components_[0]
+    else:
+        max_len = 0.0
+        b = poly.exterior.coords
+        linestrings = [LineString(b[k : k + 2]) for k in range(len(b) - 1)]
+        for line in linestrings:
+            if line.length >= max_len:
+                longest = line
 
-    ##get the right dimension for layout
-    x_diff = poly.bounds[2] - poly.bounds[0]
-    y_diff = poly.bounds[3] - poly.bounds[1]
+        direction = np.array(longest.coords[1]) - np.array(longest.coords[0])
 
+    x_dir = np.array([1.0, 0.0], dtype=np.float64)
+    # print(fid)
+    angle = angle_between(x_dir, direction)
+    angle_orig = angle
+    cross = np.cross(x_dir, direction)
+    if cross >= 0.0:
+        angle = -angle
+
+    rotated = shapely.affinity.rotate(
+        poly,
+        angle,
+        origin=(poly.exterior.centroid.x, poly.exterior.centroid.y),
+        use_radians=True,
+    )
+    x_diff = rotated.bounds[2] - rotated.bounds[0]
+    y_diff = rotated.bounds[3] - rotated.bounds[1]
+
+    # get the right dimension for layout
     dimension = x_diff / edge_length, y_diff / edge_length
-    dimension_a = (
-        math.ceil((int(dimension[0]) + (dimension[0] % 5 > 0)) * 2) * 2
-    )  # upround
-    dimension_b = math.ceil((int(dimension[1]) + (dimension[1] % 5 > 0)) * 2) * 2
+    dimension_a = math.ceil(dimension[0])
+    dimension_b = math.ceil(dimension[1])
+    q1 = np.array([edge_length, 0], dtype=np.float64)
+    q2 = np.array([0, edge_length], dtype=np.float64)
+    # bottom left of grid
+    so = np.array([rotated.bounds[0], rotated.bounds[1]], dtype=np.float64)
 
-    # Second coordinate of permanent traffic lane
-    dif = np.array(p0) - np.array(p1)
-    l = np.linalg.norm(dif)
-    ndif = dif / l
-    q1 = ndif * edge_length
-    q2 = np.array((q1[1], -q1[0]))
-
-    so = np.array(p0 - q2 / parallel_shift)
-
-    def compute_poly(i, j):
+    # print(so)
+    def compute_poly(i, j, rot):
         s = so + i * q1 + j * q2
-        patch = Polygon([s, s + q2, s + (q1 + q2), s + q1])
-        # if patch.intersection(poly):
-        return patch
+        patch = Polygon([s, s + q1, s + (q1 + q2), s + q2])
+        return shapely.affinity.rotate(
+            patch,
+            rot,
+            origin=(poly.exterior.centroid.x, poly.exterior.centroid.y),
+            use_radians=True,
+        )
+        # return shapely.affinity.rotate(patch, rot, origin=(0.0, 0.0), use_radians=True)
+        # return shapely.affinity.rotate(patch, a, origin='center', use_radians=True)
 
     polies = [
-        compute_poly(i, j)
-        for i, j in product(
-            range(-dimension_a, dimension_a), range(-dimension_b, dimension_b)
-        )
+        compute_poly(i, j, -angle)
+        for i, j in product(range(0, dimension_a), range(0, dimension_b))
     ]
     data = gpd.GeoDataFrame({"geometry": polies})
     data.crs = "{}".format(utm)
 
-    # Alternatively use clip and clip to polygon
-    patches_within = data.clip(poly, keep_geom_type=True)
-    # patches_within = data[data.intersects(poly)]
+    grid_poly = data.iloc[0]["geometry"]
+    x1 = np.array(grid_poly.exterior.coords[0], dtype=np.float64)
+    x2 = np.array(grid_poly.exterior.coords[1], dtype=np.float64)
+    vec = x2 - x1
+    a = angle_between(vec, x_dir)
+    vec_cross = np.cross(vec, direction)
+    ab = angle_between(vec, direction)
+    if (
+        not math.isclose(a, angle_orig)
+        and not math.isclose(vec_cross, 0.0)
+        and not math.isclose(ab, 0.0)
+    ):
+        print(
+            f"""WRONG {fid}, {a}, {ab}, {angle}, {angle_orig}, {vec_cross}, {cross}"""
+        )
 
-    # transform back to original crs
+    # clip to boundary
+    patches_within = data.clip(poly, keep_geom_type=True)
+    sum_area = patches_within["geometry"].apply(lambda geom: geom.area).sum()
+
+    if not math.isclose(sum_area, poly.area):
+        print(f"""Different area for {fid}: {sum_area} {poly.area}""")
+
     patches_within = patches_within.to_crs(crs)
 
     return patches_within
