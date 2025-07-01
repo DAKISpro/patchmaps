@@ -63,8 +63,8 @@ def get_structure(
 
     # Second coordinate of permanent traffic lane
     dif = np.array(p0) - np.array(p1)
-    l = np.linalg.norm(dif)
-    ndif = dif / l
+    vector_norm = np.linalg.norm(dif)
+    ndif = dif / vector_norm
     q1 = ndif * edge_length
     q2 = np.array((q1[1], -q1[0]))
 
