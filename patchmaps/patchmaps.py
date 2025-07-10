@@ -1,12 +1,8 @@
-#!/usr/bin/env python
-# coding: utf-8
 import math
-import py_compile
 from itertools import product
 
 import geopandas as gpd
 import numpy as np
-import pandas as pd
 import pyproj
 import shapely.affinity
 from pyproj import CRS
