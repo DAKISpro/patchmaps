@@ -25,33 +25,33 @@ def angle_between(v1, v2):
 
 
 def get_structure(
-    fid,
+    fid: int,
     poly: Polygon,
-    crs="epsg:4326",
-    working_width=36,
-    factor=1,
-    tramline=None,
-    use_pca=None,
+    crs: str = "epsg:4326",
+    working_width: int = 36,
+    factor: int = 1,
+    tramline: gpd.GeoDataFrame | None = None,
+    use_pca: bool = False,
 ) -> gpd.GeoDataFrame:
     edge_length = working_width * factor
 
-    if factor % 2 == 0:
-        parallel_shift = 4
-    else:
-        parallel_shift = 2
-
     input_crs = CRS.from_user_input(crs).name
-    # find correct EPSG for calculation in meter
-    utm_crs_list = query_utm_crs_info(
-        datum_name=input_crs,
-        area_of_interest=AreaOfInterest(
-            west_lon_degree=poly.bounds[0],
-            south_lat_degree=poly.bounds[1],
-            east_lon_degree=poly.bounds[2],
-            north_lat_degree=poly.bounds[3],
-        ),
-    )
-    utm = CRS.from_epsg(utm_crs_list[0].code)
+    utm = CRS(input_crs)
+
+    # If not a projected crs then try to find the correct one
+    # If already projected just use it
+    if not CRS(input_crs).is_projected:
+        # find correct EPSG for calculation in meter
+        utm_crs_list = query_utm_crs_info(
+            datum_name=input_crs,
+            area_of_interest=AreaOfInterest(
+                west_lon_degree=poly.bounds[0],
+                south_lat_degree=poly.bounds[1],
+                east_lon_degree=poly.bounds[2],
+                north_lat_degree=poly.bounds[3],
+            ),
+        )
+        utm = CRS.from_epsg(utm_crs_list[0].code)
     # to utm (meters) TODO verify this.
     project = pyproj.Transformer.from_crs(crs, utm, always_xy=True).transform
     poly = transform(project, poly)
