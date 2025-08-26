@@ -57,7 +57,7 @@ def get_structure(
     poly = transform(project, poly)
 
     if tramline is not None:
-        tramline = tramline.to_crs("{}".format(utm))
+        tramline = tramline.to_crs(f"{utm}")
         p0 = np.array(
             tramline["geometry"][0].coords[0], dtype=np.float64
         )  # First coordinate of permanent traffic laneb
@@ -118,11 +118,10 @@ def get_structure(
         # return shapely.affinity.rotate(patch, a, origin='center', use_radians=True)
 
     polies = [
-        compute_poly(i, j, -angle)
-        for i, j in product(range(0, dimension_a), range(0, dimension_b))
+        compute_poly(i, j, -angle) for i, j in product(range(0, dimension_a), range(0, dimension_b))
     ]
     data = gpd.GeoDataFrame({"geometry": polies})
-    data.crs = "{}".format(utm)
+    data.crs = f"{utm}"
 
     grid_poly = data.iloc[0]["geometry"]
     x1 = np.array(grid_poly.exterior.coords[0], dtype=np.float64)
@@ -136,9 +135,7 @@ def get_structure(
         and not math.isclose(vec_cross, 0.0)
         and not math.isclose(ab, 0.0)
     ):
-        print(
-            f"""WRONG {fid}, {a}, {ab}, {angle}, {angle_orig}, {vec_cross}, {cross}"""
-        )
+        print(f"""WRONG {fid}, {a}, {ab}, {angle}, {angle_orig}, {vec_cross}, {cross}""")
 
     # clip to boundary
     patches_within = data.clip(poly, keep_geom_type=True)
