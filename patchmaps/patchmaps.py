@@ -72,9 +72,14 @@ def get_structure(
         max_len = 0.0
         b = poly.exterior.coords
         linestrings = [LineString(b[k : k + 2]) for k in range(len(b) - 1)]
+        longest: LineString | None = None
         for line in linestrings:
             if line.length >= max_len:
                 longest = line
+                max_len = line.length
+
+        if longest is None:
+            raise ValueError("Polygon must have at least one edge")
 
         direction = np.array(longest.coords[1]) - np.array(longest.coords[0])
 
