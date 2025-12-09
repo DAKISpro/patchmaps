@@ -59,7 +59,8 @@ def get_structure(
     if tramline is not None:
         tramline = tramline.to_crs(f"{utm}")
         p0 = np.array(
-            tramline["geometry"][0].coords[0], dtype=np.float64
+            tramline["geometry"][0].coords[0],
+            dtype=np.float64,
         )  # First coordinate of permanent traffic laneb
         p1 = np.array(tramline["geometry"][0].coords[1], dtype=np.float64)
         direction = unit_vector(p1 - p0)
@@ -123,7 +124,7 @@ def get_structure(
         # return shapely.affinity.rotate(patch, a, origin='center', use_radians=True)
 
     polies = [
-        compute_poly(i, j, -angle) for i, j in product(range(0, dimension_a), range(0, dimension_b))
+        compute_poly(i, j, -angle) for i, j in product(range(dimension_a), range(dimension_b))
     ]
     data = gpd.GeoDataFrame({"geometry": polies})
     data.crs = f"{utm}"
