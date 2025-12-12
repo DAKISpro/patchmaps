@@ -67,7 +67,7 @@ def get_structure(
     elif use_pca:
         coords = np.array(poly.exterior.coords, dtype=np.float64)
         pca = PCA(n_components=2)
-        pca.fit(coords)
+        _ = pca.fit(coords)
         direction = pca.components_[0]
     else:
         max_len = 0.0
