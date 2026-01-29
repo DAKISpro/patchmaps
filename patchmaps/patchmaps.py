@@ -25,7 +25,7 @@ def angle_between(v1, v2):
 
 
 def get_structure(
-    fid: int,
+    fid: int | str,
     poly: Polygon,
     crs: str = "epsg:4326",
     working_width: int = 36,
