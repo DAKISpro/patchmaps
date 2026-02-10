@@ -1,3 +1,4 @@
+import logging
 import math
 from itertools import product
 
@@ -13,12 +14,14 @@ from shapely.geometry.polygon import Polygon
 from shapely.ops import transform
 from sklearn.decomposition import PCA
 
+logger = logging.getLogger(__name__)
 
-def unit_vector(vector):
+
+def unit_vector(vector: np.ndarray) -> np.ndarray:
     return vector / np.linalg.norm(vector)
 
 
-def angle_between(v1, v2):
+def angle_between(v1: np.ndarray, v2: np.ndarray) -> float:
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
@@ -80,7 +83,8 @@ def get_structure(
                 max_len = line.length
 
         if longest is None:
-            raise ValueError("Polygon must have at least one edge")
+            msg = "Polygon must have at least one edge"
+            raise ValueError(msg)
 
         direction = np.array(longest.coords[1]) - np.array(longest.coords[0])
 
@@ -111,7 +115,7 @@ def get_structure(
     so = np.array([rotated.bounds[0], rotated.bounds[1]], dtype=np.float64)
 
     # print(so)
-    def compute_poly(i, j, rot):
+    def compute_poly(i: int, j: int, rot: float) -> Polygon:
         s = so + i * q1 + j * q2
         patch = Polygon([s, s + q1, s + (q1 + q2), s + q2])
         return shapely.affinity.rotate(
@@ -141,15 +145,22 @@ def get_structure(
         and not math.isclose(vec_cross, 0.0)
         and not math.isclose(ab, 0.0)
     ):
-        print(f"""WRONG {fid}, {a}, {ab}, {angle}, {angle_orig}, {vec_cross}, {cross}""")
+        logger.warning(
+            "WRONG %s, %s, %s, %s, %s, %s, %s",
+            fid,
+            a,
+            ab,
+            angle,
+            angle_orig,
+            vec_cross,
+            cross,
+        )
 
     # clip to boundary
     patches_within = data.clip(poly, keep_geom_type=True)
     sum_area = patches_within["geometry"].apply(lambda geom: geom.area).sum()
 
     if not math.isclose(sum_area, poly.area):
-        print(f"""Different area for {fid}: {sum_area} {poly.area}""")
+        logger.warning("Different area for %s: %s %s", fid, sum_area, poly.area)
 
-    patches_within = patches_within.to_crs(crs)
-
-    return patches_within
+    return patches_within.to_crs(crs)
