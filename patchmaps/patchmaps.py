@@ -1,3 +1,5 @@
+"""Provide functionality for patchmaps."""
+
 import logging
 import math
 from itertools import product
@@ -18,10 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 def unit_vector(vector: np.ndarray) -> np.ndarray:
+    """Execute unit vector."""
     return vector / np.linalg.norm(vector)
 
 
 def angle_between(v1: np.ndarray, v2: np.ndarray) -> float:
+    """Execute angle between."""
     v1_u = unit_vector(v1)
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
@@ -36,6 +40,7 @@ def get_structure(
     tramline: gpd.GeoDataFrame | None = None,
     use_pca: bool = False,
 ) -> gpd.GeoDataFrame:
+    """Return structure."""
     edge_length = working_width * factor
 
     input_crs = CRS.from_user_input(crs).name
@@ -89,7 +94,6 @@ def get_structure(
         direction = np.array(longest.coords[1]) - np.array(longest.coords[0])
 
     x_dir = np.array([1.0, 0.0], dtype=np.float64)
-    # print(fid)
     angle = angle_between(x_dir, direction)
     angle_orig = angle
     cross = np.cross(x_dir, direction)
@@ -114,7 +118,6 @@ def get_structure(
     # bottom left of grid
     so = np.array([rotated.bounds[0], rotated.bounds[1]], dtype=np.float64)
 
-    # print(so)
     def compute_poly(i: int, j: int, rot: float) -> Polygon:
         s = so + i * q1 + j * q2
         patch = Polygon([s, s + q1, s + (q1 + q2), s + q2])
@@ -124,8 +127,6 @@ def get_structure(
             origin=(poly.exterior.centroid.x, poly.exterior.centroid.y),
             use_radians=True,
         )
-        # return shapely.affinity.rotate(patch, rot, origin=(0.0, 0.0), use_radians=True)
-        # return shapely.affinity.rotate(patch, a, origin='center', use_radians=True)
 
     polies = [
         compute_poly(i, j, -angle) for i, j in product(range(dimension_a), range(dimension_b))
