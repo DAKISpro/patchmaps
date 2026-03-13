@@ -43,6 +43,12 @@ def angle_between(v1: np.ndarray, v2: np.ndarray) -> float:
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
 
+def _cross_2d(v1: np.ndarray, v2: np.ndarray) -> float:
+    v1_x, v1_y = float(v1[0]), float(v1[1])
+    v2_x, v2_y = float(v2[0]), float(v2[1])
+    return (v1_x * v2_y) - (v1_y * v2_x)
+
+
 def _get_projected_crs(poly: Polygon, crs: str) -> CRS:
     input_crs = CRS.from_user_input(crs).name
     utm = CRS(input_crs)
@@ -98,11 +104,11 @@ def _get_direction(poly: Polygon, projected_crs: CRS, options: StructureOptions)
     return _longest_edge_direction(poly)
 
 
-def _rotation_values(direction: np.ndarray) -> tuple[float, float, np.float64]:
+def _rotation_values(direction: np.ndarray) -> tuple[float, float, float]:
     x_dir = np.array([1.0, 0.0], dtype=np.float64)
     angle = angle_between(x_dir, direction)
     angle_orig = angle
-    cross = np.cross(x_dir, direction)
+    cross = _cross_2d(x_dir, direction)
     if cross >= 0.0:
         angle = -angle
     return angle, angle_orig, cross
@@ -141,7 +147,7 @@ def _log_orientation_warning(
     data: gpd.GeoDataFrame,
     fid: int | str,
     direction: np.ndarray,
-    rotation_values: tuple[float, float, np.float64],
+    rotation_values: tuple[float, float, float],
 ) -> None:
     angle, angle_orig, cross = rotation_values
     x_dir = np.array([1.0, 0.0], dtype=np.float64)
@@ -150,7 +156,7 @@ def _log_orientation_warning(
     x2 = np.array(grid_poly.exterior.coords[1], dtype=np.float64)
     vec = x2 - x1
     a = angle_between(vec, x_dir)
-    vec_cross = np.cross(vec, direction)
+    vec_cross = _cross_2d(vec, direction)
     ab = angle_between(vec, direction)
     if not math.isclose(a, angle_orig) and not math.isclose(vec_cross, 0.0) and not math.isclose(ab, 0.0):
         logger.warning(
