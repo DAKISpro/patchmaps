@@ -5,7 +5,7 @@ description = "Creates rectangular Patchstructure parallel to permanent traffic 
 authors = [
   { name = "Marco Donat & Jonas Geistert", email = "marco.donat@zalf.de" },
 ]
-requires-python = ">=3.11, <3.14"
+requires-python = ">=3.11, <3.15"
 readme = "README.md"
 license = { text = "MIT" }
 dependencies = [
